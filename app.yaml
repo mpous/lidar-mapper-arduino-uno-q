@@ -1,0 +1,7 @@
+name: LiDAR Mapper
+description: "Reads LDROBOT D500 LiDAR via USB and displays a live 360° map in a web browser"
+icon: "🗺️"
+ports: [5001]
+bricks: []
+devices:
+  - "/dev/ttyUSB0:/dev/ttyUSB0"

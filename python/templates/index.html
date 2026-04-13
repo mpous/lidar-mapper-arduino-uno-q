@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiDAR Mapper — Arduino UNO Q</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      color: #58a6ff;
+      letter-spacing: 0.05em;
+    }
+
+    #status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #30363d;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #status-dot.connected   { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+    #status-dot.scanning    { background: #58a6ff; box-shadow: 0 0 6px #58a6ff; }
+
+    /* Canvas wrapper */
+    #canvas-wrap {
+      position: relative;
+      width: 600px; height: 600px;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 50%;
+      border: 1px solid #21262d;
+    }
+
+    /* HUD overlays */
+    #hud {
+      position: absolute;
+      top: 8px; left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      font-size: 0.72rem;
+      color: #8b949e;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #hud span { color: #58a6ff; }
+
+    /* Controls */
+    #controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-size: 0.8rem;
+    }
+
+    label { color: #8b949e; }
+
+    input[type=range] {
+      accent-color: #58a6ff;
+      width: 120px;
+    }
+
+    select {
+      background: #161b22;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: inherit;
+    }
+
+    #range-val { color: #58a6ff; width: 42px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div id="status-dot"></div>
+  <h1>LIDAR MAPPER &mdash; Arduino UNO Q &nbsp;/&nbsp; LDROBOT D500</h1>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="lidar-canvas" width="600" height="600"></canvas>
+  <div id="hud">
+    <div>POINTS <span id="hud-pts">0</span></div>
+    <div>SCAN # <span id="hud-scan">0</span></div>
+    <div>MAX&nbsp;DIST <span id="hud-max">—</span> m</div>
+    <div>MIN&nbsp;DIST <span id="hud-min">—</span> m</div>
+  </div>
+</div>
+
+<div id="controls">
+  <label>Range
+    <input type="range" id="range-slider" min="1" max="12" value="10" step="0.5" />
+    <span id="range-val">10 m</span>
+  </label>
+  <label>Color&nbsp;mode
+    <select id="color-mode">
+      <option value="distance">Distance</option>
+      <option value="intensity">Uniform</option>
+    </select>
+  </label>
+  <label>Trail
+    <input type="range" id="trail-slider" min="0" max="0.95" value="0.6" step="0.05" />
+  </label>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const CANVAS_SIZE   = 600;
+const CENTER        = CANVAS_SIZE / 2;
+
+// Reactive config (updated by controls)
+let maxRangeM   = 10;     // metres
+let trailAlpha  = 0.6;    // how much of the previous frame survives (0=clear, 1=no clear)
+let colorMode   = "distance";
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById("lidar-canvas");
+const ctx    = canvas.getContext("2d");
+
+// ── Grid drawing ─────────────────────────────────────────────────────────────
+function drawGrid() {
+  const rings = 5;
+  ctx.save();
+
+  // Ring labels
+  for (let i = 1; i <= rings; i++) {
+    const r   = (i / rings) * CENTER;
+    const dist = (maxRangeM * i / rings).toFixed(1);
+
+    ctx.beginPath();
+    ctx.arc(CENTER, CENTER, r, 0, Math.PI * 2);
+    ctx.strokeStyle = i === rings ? "#21262d" : "#161b22";
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+
+    ctx.fillStyle  = "#484f58";
+    ctx.font       = "10px Courier New";
+    ctx.textAlign  = "left";
+    ctx.fillText(dist + " m", CENTER + r + 3, CENTER + 10);
+  }
+
+  // Cross-hairs
+  ctx.strokeStyle = "#161b22";
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(CENTER, 0);       ctx.lineTo(CENTER, CANVAS_SIZE); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, CENTER);       ctx.lineTo(CANVAS_SIZE, CENTER); ctx.stroke();
+
+  // Cardinal labels
+  ctx.fillStyle = "#484f58";
+  ctx.font = "11px Courier New";
+  ctx.textAlign = "center";
+  ctx.fillText("0°",  CENTER, 14);
+  ctx.fillText("180°", CENTER, CANVAS_SIZE - 4);
+  ctx.textAlign = "left";
+  ctx.fillText("90°",  CANVAS_SIZE - 26, CENTER + 4);
+  ctx.textAlign = "right";
+  ctx.fillText("270°", 26, CENTER + 4);
+
+  ctx.restore();
+}
+
+// ── Color helpers ─────────────────────────────────────────────────────────────
+function distColor(distMm) {
+  // Green (near) → Yellow → Red (far) using HSL
+  const ratio = Math.min(distMm / (maxRangeM * 1000), 1);
+  const hue   = Math.round((1 - ratio) * 120); // 120=green, 0=red
+  return `hsl(${hue}, 100%, 55%)`;
+}
+
+// ── Render a scan ─────────────────────────────────────────────────────────────
+function renderScan(points) {
+  // Trail effect: overlay a semi-transparent fill over the whole canvas
+  ctx.fillStyle = `rgba(13, 17, 23, ${1 - trailAlpha})`;
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, CENTER, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Redraw grid (grid must survive the trail wipe)
+  drawGrid();
+
+  // Draw robot position
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, 4, 0, Math.PI * 2);
+  ctx.fillStyle = "#f0883e";
+  ctx.fill();
+
+  // Plot each point
+  const pxPerMm = CENTER / (maxRangeM * 1000);
+  let   maxD = 0, minD = Infinity;
+
+  for (const [angleDeg, distMm] of points) {
+    if (distMm === 0) continue;
+    maxD = Math.max(maxD, distMm);
+    minD = Math.min(minD, distMm);
+
+    // LiDAR 0° is typically "forward" (up on screen).
+    // Adjust sign so CCW on canvas = CCW in real world.
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    const r   = distMm * pxPerMm;
+    const x   = CENTER + r * Math.cos(rad);
+    const y   = CENTER + r * Math.sin(rad);
+
+    if (x < 0 || x > CANVAS_SIZE || y < 0 || y > CANVAS_SIZE) continue;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = colorMode === "distance" ? distColor(distMm) : "#58a6ff";
+    ctx.fill();
+  }
+
+  // Update HUD
+  document.getElementById("hud-pts").textContent  = points.length;
+  document.getElementById("hud-max").textContent  = maxD > 0 ? (maxD / 1000).toFixed(2) : "—";
+  document.getElementById("hud-min").textContent  = minD < Infinity ? (minD / 1000).toFixed(2) : "—";
+}
+
+// ── Initial draw ──────────────────────────────────────────────────────────────
+ctx.fillStyle = "#0d1117";
+ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+drawGrid();
+
+// ── WebSocket connection ──────────────────────────────────────────────────────
+const dot = document.getElementById("status-dot");
+const socket = io({ transports: ["websocket"] });
+
+socket.on("connect", () => {
+  dot.className = "connected";
+});
+
+socket.on("disconnect", () => {
+  dot.className = "";
+});
+
+socket.on("scan", ({ points, stats }) => {
+  dot.className = "scanning";
+  renderScan(points);
+  document.getElementById("hud-scan").textContent = stats.scan_num;
+  // Brief flash back to "connected" colour after paint
+  setTimeout(() => { dot.className = "connected"; }, 80);
+});
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+document.getElementById("range-slider").addEventListener("input", e => {
+  maxRangeM = parseFloat(e.target.value);
+  document.getElementById("range-val").textContent = maxRangeM + " m";
+});
+
+document.getElementById("trail-slider").addEventListener("input", e => {
+  trailAlpha = parseFloat(e.target.value);
+});
+
+document.getElementById("color-mode").addEventListener("change", e => {
+  colorMode = e.target.value;
+});
+</script>
+</body>
+</html>

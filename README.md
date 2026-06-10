@@ -2,6 +2,8 @@
 
 In this project we will connect an LDRobot D500 LiDAR Developer Kit to an Arduino UNO Q, capture distance profiles from different rooms, upload them to Edge Impulse Studio as time-series data, train a classification model, and deploy it back on the Arduino UNO Q for real-time inference, all happening in the edge. 
 
+<img width="800" alt="Mapping a room with the LiDAR connected to the Arduino UNO Q and Edge Impulse" src="https://github.com/user-attachments/assets/97fe280a-f3ed-4c3c-b2bf-db917a718854" />
+
 The Arduino UNO Q renders a local Web UI for real-time polar map and integrates with Edge Impulse, using the API key, for training data capture and on-device ML inference.
 
 ## How the LiDAR works

@@ -3,285 +3,763 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LiDAR Mapper — Arduino UNO Q</title>
+  <title>Edge Impulse LiDAR Mapper</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0d1117;
-      color: #c9d1d9;
-      font-family: 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background: #fff;
+      color: #24292f;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
       min-height: 100vh;
-      padding: 16px;
-      gap: 12px;
     }
 
+    /* ── Header ─────────────────────────────────────────────────────────────── */
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      width: 100%;
-      max-width: 640px;
+      gap: 14px;
+      padding: 16px 32px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    #ei-logo { height: 30px; }
+    .header-title {
+      font-size: 0.95rem;
+      font-weight: 400;
+      color: #6b7280;
     }
 
-    header h1 {
-      font-size: 1.1rem;
-      color: #58a6ff;
-      letter-spacing: 0.05em;
+    /* ── Main layout ────────────────────────────────────────────────────────── */
+    #app {
+      display: flex;
+      gap: 32px;
+      max-width: 1080px;
+      margin: 24px auto;
+      padding: 0 32px;
+      align-items: flex-start;
+    }
+    #left-col { flex: 0 0 auto; }
+    #right-col {
+      flex: 1;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    #status-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: #30363d;
-      flex-shrink: 0;
-      transition: background 0.3s;
-    }
-    #status-dot.connected   { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
-    #status-dot.scanning    { background: #58a6ff; box-shadow: 0 0 6px #58a6ff; }
-
-    /* Canvas wrapper */
+    /* ── Canvas area ────────────────────────────────────────────────────────── */
     #canvas-wrap {
       position: relative;
-      width: 600px; height: 600px;
+      width: 580px; height: 580px;
     }
-
     canvas {
       display: block;
-      border-radius: 50%;
-      border: 1px solid #21262d;
+      border-radius: 12px;
+      width: 580px; height: 580px;
     }
-
-    /* HUD overlays */
     #hud {
       position: absolute;
-      top: 8px; left: 50%;
+      top: 10px; left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 20px;
-      font-size: 0.72rem;
-      color: #8b949e;
+      gap: 18px;
+      font-size: 0.68rem;
+      color: #8888aa;
       pointer-events: none;
       white-space: nowrap;
+      font-family: 'SF Mono', 'Menlo', monospace;
+    }
+    #hud span { color: #6ec4ff; }
+
+    #inference-overlay {
+      display: none;
+      position: absolute;
+      bottom: 14px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 6px 18px;
+      border-radius: 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+    }
+    #inference-overlay .conf { font-weight: 400; opacity: 0.75; margin-left: 6px; }
+
+    /* Canvas status bar */
+    #canvas-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px 0;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    #canvas-bar .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+    .dot.ok      { background: #22c55e; }
+    .dot.active  { background: #3b82f6; }
+    .dot.err     { background: #ef4444; }
+
+    /* ── Right-column sections ──────────────────────────────────────────────── */
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
     }
 
-    #hud span { color: #58a6ff; }
+    /* Port selector */
+    #port-select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      font-family: inherit;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      color: #24292f;
+      margin-bottom: 8px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 0;
+      font-size: 0.82rem;
+      font-family: inherit;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #24292f;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #f9fafb; }
+    .btn-stop {
+      background: #ef4444;
+      color: #fff;
+      border-color: #ef4444;
+    }
+    .btn-stop:hover { background: #dc2626; }
+    .btn-start {
+      background: #22c55e;
+      color: #fff;
+      border-color: #22c55e;
+    }
+    .btn-start:hover { background: #16a34a; }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-card {
+      text-align: center;
+      padding: 10px 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    .stat-val {
+      display: block;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #22c55e;
+      line-height: 1.2;
+    }
+    .stat-label {
+      display: block;
+      font-size: 0.68rem;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
 
     /* Controls */
-    #controls {
+    .ctrl-row {
       display: flex;
-      gap: 12px;
       align-items: center;
-      flex-wrap: wrap;
-      justify-content: center;
-      font-size: 0.8rem;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: #6b7280;
     }
-
-    label { color: #8b949e; }
-
-    input[type=range] {
-      accent-color: #58a6ff;
-      width: 120px;
-    }
-
-    select {
-      background: #161b22;
-      color: #c9d1d9;
-      border: 1px solid #30363d;
-      border-radius: 4px;
-      padding: 2px 6px;
+    .ctrl-row label { min-width: 42px; }
+    .ctrl-row input[type=range] { flex: 1; accent-color: #3b82f6; }
+    .ctrl-row select {
+      padding: 4px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
       font-family: inherit;
+      font-size: 0.78rem;
+      background: #fff;
+      color: #24292f;
+    }
+    .ctrl-val { color: #3b82f6; min-width: 36px; text-align: right; font-weight: 500; }
+
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 9px 0;
+      font-size: 0.78rem;
+      font-weight: 500;
+      font-family: inherit;
+      color: #9ca3af;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .tab-btn:hover { color: #24292f; }
+    .tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+
+    .tab-pane { display: none; padding: 14px 0 0; flex-direction: column; gap: 10px; }
+    .tab-pane.active { display: flex; }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+    .field-row label { min-width: 64px; font-weight: 500; }
+    .field-row input[type=text],
+    .field-row input[type=password] {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      background: #fff;
+      color: #24292f;
+    }
+    .field-row input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    .field-row select {
+      padding: 7px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      background: #fff;
+      color: #24292f;
     }
 
-    #range-val { color: #58a6ff; width: 42px; display: inline-block; }
+    .action-btn {
+      width: 100%;
+      padding: 9px 0;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #record-btn { background: #fff; color: #ef4444; border: 1px solid #ef4444; }
+    #record-btn:hover { background: #fef2f2; }
+    #record-btn.recording { background: #ef4444; color: #fff; }
+
+    #infer-btn { background: #fff; color: #22c55e; border: 1px solid #22c55e; }
+    #infer-btn:hover { background: #f0fdf4; }
+    #infer-btn.running { background: #22c55e; color: #fff; }
+
+    .progress-row { display: none; align-items: center; gap: 8px; }
+    .progress-row.vis { display: flex; }
+    .progress-track { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; border-radius: 2px; transition: width 0.15s; }
+    #train-progress .progress-fill { background: #ef4444; }
+    .progress-text { font-size: 0.7rem; color: #9ca3af; min-width: 76px; text-align: right; }
+
+    .status-msg { font-size: 0.75rem; min-height: 1.1em; }
+    .status-msg.error     { color: #ef4444; }
+    .status-msg.done      { color: #22c55e; }
+    .status-msg.recording { color: #ef4444; }
+    .status-msg.uploading { color: #3b82f6; }
+    .status-msg.loading   { color: #eab308; }
+    .status-msg.running   { color: #22c55e; }
+    .status-msg.stopped   { color: #9ca3af; }
+
+    /* Inference results — matches "DETECTED TEXT" pattern */
+    #inference-results { display: none; flex-direction: column; gap: 6px; }
+    #inference-results.vis { display: flex; }
+
+    .result-row { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; }
+    .result-lbl { min-width: 72px; font-weight: 600; color: #24292f; }
+    .result-track { flex: 1; height: 12px; background: #f3f4f6; border-radius: 6px; overflow: hidden; }
+    .result-fill { height: 100%; border-radius: 6px; background: #3b82f6; transition: width 0.2s; }
+    .result-fill.top { background: #22c55e; }
+    .result-pct { min-width: 36px; text-align: right; font-weight: 600; color: #6b7280; font-size: 0.72rem; }
+
+    .det-card {
+      border-left: 3px solid #22c55e;
+      padding: 8px 12px;
+      margin-top: 4px;
+    }
+    .det-card .det-label { font-weight: 700; font-size: 0.92rem; color: #24292f; }
+    .det-card .det-conf  { font-size: 0.75rem; color: #6b7280; }
+
+    #inf-timing { font-size: 0.7rem; color: #9ca3af; margin-top: 4px; }
+
+    .hint { font-size: 0.7rem; color: #9ca3af; line-height: 1.4; }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 4px 0; }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      #app { flex-direction: column; align-items: center; padding: 0 16px; }
+      #canvas-wrap { width: 100%; max-width: 580px; height: auto; aspect-ratio: 1; }
+      canvas { width: 100%; height: 100%; }
+    }
   </style>
 </head>
 <body>
 
+<!-- ── Header ───────────────────────────────────────────────────────────────── -->
 <header>
-  <div id="status-dot"></div>
-  <h1>LIDAR MAPPER &mdash; Arduino UNO Q &nbsp;/&nbsp; LDROBOT D500</h1>
+  <img id="ei-logo"
+       src="https://cdn.prod.website-files.com/618cdeef45d18e4ef2fd85f3/618e33d89badebdfe7c5897a_Logo%20(2).svg"
+       alt="Edge Impulse" />
+  <span class="header-title">LiDAR Mapper</span>
 </header>
 
-<div id="canvas-wrap">
-  <canvas id="lidar-canvas" width="600" height="600"></canvas>
-  <div id="hud">
-    <div>POINTS <span id="hud-pts">0</span></div>
-    <div>SCAN # <span id="hud-scan">0</span></div>
-    <div>MAX&nbsp;DIST <span id="hud-max">—</span> m</div>
-    <div>MIN&nbsp;DIST <span id="hud-min">—</span> m</div>
+<!-- ── App layout ───────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Left: canvas -->
+  <div id="left-col">
+    <div id="canvas-wrap">
+      <canvas id="lidar-canvas" width="600" height="600"></canvas>
+      <div id="hud">
+        <div>PTS <span id="hud-pts">0</span></div>
+        <div>SCAN <span id="hud-scan">0</span></div>
+        <div>MAX <span id="hud-max">—</span>m</div>
+        <div>MIN <span id="hud-min">—</span>m</div>
+      </div>
+      <div id="inference-overlay">
+        <span id="inf-top-label">--</span>
+        <span class="conf" id="inf-top-conf">0%</span>
+      </div>
+    </div>
+    <div id="canvas-bar">
+      <div class="status-pill"><div class="dot" id="lidar-dot"></div><span id="lidar-text">Connecting…</span></div>
+      <span id="frame-info">Scan 0 | 0 points</span>
+    </div>
+  </div>
+
+  <!-- Right: controls -->
+  <div id="right-col">
+
+    <!-- LIDAR PORT -->
+    <div>
+      <div class="section-label">LIDAR USB PORT</div>
+      <select id="port-select"><option value="">Scanning…</option></select>
+      <div class="btn-row">
+        <button class="btn" id="refresh-btn">Refresh</button>
+        <button class="btn btn-stop" id="lidar-btn">Stop</button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div>
+      <div class="section-label">STATS</div>
+      <div class="stats-grid">
+        <div class="stat-card"><span class="stat-val" id="s-pts">0</span><span class="stat-label">Points</span></div>
+        <div class="stat-card"><span class="stat-val" id="s-scan">0</span><span class="stat-label">Scan #</span></div>
+        <div class="stat-card"><span class="stat-val" id="s-max">—</span><span class="stat-label">Max Dist (m)</span></div>
+        <div class="stat-card"><span class="stat-val" id="s-min">—</span><span class="stat-label">Min Dist (m)</span></div>
+      </div>
+    </div>
+
+    <!-- DISPLAY -->
+    <div>
+      <div class="section-label">DISPLAY</div>
+      <div class="ctrl-row">
+        <label>Range</label>
+        <input type="range" id="range-slider" min="1" max="12" value="10" step="0.5" />
+        <span class="ctrl-val" id="range-val">10 m</span>
+      </div>
+      <div class="ctrl-row" style="margin-top:4px">
+        <label>Trail</label>
+        <input type="range" id="trail-slider" min="0" max="0.95" value="0.6" step="0.05" />
+      </div>
+      <div class="ctrl-row" style="margin-top:4px">
+        <label>Color</label>
+        <select id="color-mode">
+          <option value="distance">Distance</option>
+          <option value="uniform">Uniform</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- TRAINING / INFERENCE tabs -->
+    <div>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="training">Training</button>
+        <button class="tab-btn" data-tab="inference">Inference</button>
+      </div>
+
+      <!-- Training pane -->
+      <div id="tab-training" class="tab-pane active">
+        <div class="field-row">
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="ei_..." autocomplete="off" />
+        </div>
+        <div class="field-row">
+          <label>Label</label>
+          <input type="text" id="training-label" placeholder="e.g. obstacle, empty" />
+        </div>
+        <div class="field-row">
+          <label>Duration</label>
+          <select id="training-duration">
+            <option value="5">5 s</option>
+            <option value="10" selected>10 s</option>
+            <option value="20">20 s</option>
+            <option value="30">30 s</option>
+            <option value="60">60 s</option>
+          </select>
+        </div>
+        <button class="action-btn" id="record-btn">&#9679; Record</button>
+        <div class="progress-row" id="train-progress">
+          <div class="progress-track"><div class="progress-fill"></div></div>
+          <span class="progress-text">0%</span>
+        </div>
+        <div class="status-msg" id="training-status"></div>
+        <p class="hint">Enter your Edge Impulse project API key (Dashboard &rarr; Keys) to forward LiDAR scans as training data.</p>
+      </div>
+
+      <!-- Inference pane -->
+      <div id="tab-inference" class="tab-pane">
+        <div class="field-row">
+          <label>Model</label>
+          <input type="text" id="model-path" placeholder="/home/arduino/model.eim" />
+        </div>
+        <button class="action-btn" id="infer-btn">&#9655; Start Inference</button>
+        <div class="status-msg" id="inference-status"></div>
+        <div id="inference-results">
+          <div class="section-label" style="margin-top:4px">CLASSIFICATION</div>
+          <div id="results-bars"></div>
+          <div class="det-card" id="det-card" style="display:none">
+            <div class="det-label" id="det-label">—</div>
+            <div class="det-conf" id="det-conf">—</div>
+          </div>
+          <div id="inf-timing"></div>
+        </div>
+        <p class="hint">
+          Deploy your model from Edge Impulse as <strong>Linux (ARMv7)</strong>,
+          copy the <code>.eim</code> file to the device.
+          Requires <code>pip install edge_impulse_linux</code>.
+        </p>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<div id="controls">
-  <label>Range
-    <input type="range" id="range-slider" min="1" max="12" value="10" step="0.5" />
-    <span id="range-val">10 m</span>
-  </label>
-  <label>Color&nbsp;mode
-    <select id="color-mode">
-      <option value="distance">Distance</option>
-      <option value="intensity">Uniform</option>
-    </select>
-  </label>
-  <label>Trail
-    <input type="range" id="trail-slider" min="0" max="0.95" value="0.6" step="0.05" />
-  </label>
-</div>
-
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
-const CANVAS_SIZE   = 600;
-const CENTER        = CANVAS_SIZE / 2;
+// ── Canvas config ─────────────────────────────────────────────────────────────
+const CW  = 600, C = CW / 2, BG = "#0f1729";
+let maxR = 10, trail = 0.6, cMode = "distance";
 
-// Reactive config (updated by controls)
-let maxRangeM   = 10;     // metres
-let trailAlpha  = 0.6;    // how much of the previous frame survives (0=clear, 1=no clear)
-let colorMode   = "distance";
-
-// ── Canvas setup ──────────────────────────────────────────────────────────────
 const canvas = document.getElementById("lidar-canvas");
 const ctx    = canvas.getContext("2d");
 
-// ── Grid drawing ─────────────────────────────────────────────────────────────
 function drawGrid() {
-  const rings = 5;
   ctx.save();
-
-  // Ring labels
-  for (let i = 1; i <= rings; i++) {
-    const r   = (i / rings) * CENTER;
-    const dist = (maxRangeM * i / rings).toFixed(1);
-
-    ctx.beginPath();
-    ctx.arc(CENTER, CENTER, r, 0, Math.PI * 2);
-    ctx.strokeStyle = i === rings ? "#21262d" : "#161b22";
-    ctx.lineWidth   = 1;
-    ctx.stroke();
-
-    ctx.fillStyle  = "#484f58";
-    ctx.font       = "10px Courier New";
-    ctx.textAlign  = "left";
-    ctx.fillText(dist + " m", CENTER + r + 3, CENTER + 10);
+  for (let i = 1; i <= 5; i++) {
+    const r = (i / 5) * C;
+    ctx.beginPath(); ctx.arc(C, C, r, 0, Math.PI * 2);
+    ctx.strokeStyle = i === 5 ? "#2a3050" : "#1a2040"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = "#556080"; ctx.font = "10px -apple-system,sans-serif"; ctx.textAlign = "left";
+    ctx.fillText((maxR * i / 5).toFixed(1) + " m", C + r + 3, C + 10);
   }
-
-  // Cross-hairs
-  ctx.strokeStyle = "#161b22";
-  ctx.lineWidth   = 1;
-  ctx.beginPath(); ctx.moveTo(CENTER, 0);       ctx.lineTo(CENTER, CANVAS_SIZE); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, CENTER);       ctx.lineTo(CANVAS_SIZE, CENTER); ctx.stroke();
-
-  // Cardinal labels
-  ctx.fillStyle = "#484f58";
-  ctx.font = "11px Courier New";
-  ctx.textAlign = "center";
-  ctx.fillText("0°",  CENTER, 14);
-  ctx.fillText("180°", CENTER, CANVAS_SIZE - 4);
-  ctx.textAlign = "left";
-  ctx.fillText("90°",  CANVAS_SIZE - 26, CENTER + 4);
-  ctx.textAlign = "right";
-  ctx.fillText("270°", 26, CENTER + 4);
-
+  ctx.strokeStyle = "#1a2040"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(C, 0); ctx.lineTo(C, CW); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, C); ctx.lineTo(CW, C); ctx.stroke();
+  ctx.fillStyle = "#556080"; ctx.font = "11px -apple-system,sans-serif";
+  ctx.textAlign = "center"; ctx.fillText("0°", C, 14); ctx.fillText("180°", C, CW - 4);
+  ctx.textAlign = "left";  ctx.fillText("90°", CW - 26, C + 4);
+  ctx.textAlign = "right"; ctx.fillText("270°", 26, C + 4);
   ctx.restore();
 }
 
-// ── Color helpers ─────────────────────────────────────────────────────────────
-function distColor(distMm) {
-  // Green (near) → Yellow → Red (far) using HSL
-  const ratio = Math.min(distMm / (maxRangeM * 1000), 1);
-  const hue   = Math.round((1 - ratio) * 120); // 120=green, 0=red
-  return `hsl(${hue}, 100%, 55%)`;
+function dColor(mm) {
+  const r = Math.min(mm / (maxR * 1000), 1);
+  return `hsl(${Math.round((1 - r) * 120)},100%,55%)`;
 }
 
-// ── Render a scan ─────────────────────────────────────────────────────────────
-function renderScan(points) {
-  // Trail effect: overlay a semi-transparent fill over the whole canvas
-  ctx.fillStyle = `rgba(13, 17, 23, ${1 - trailAlpha})`;
-  ctx.beginPath();
-  ctx.arc(CENTER, CENTER, CENTER, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Redraw grid (grid must survive the trail wipe)
+function render(pts) {
+  ctx.fillStyle = `rgba(15,23,41,${1 - trail})`;
+  ctx.beginPath(); ctx.arc(C, C, C, 0, Math.PI * 2); ctx.fill();
   drawGrid();
+  ctx.beginPath(); ctx.arc(C, C, 4, 0, Math.PI * 2); ctx.fillStyle = "#f0883e"; ctx.fill();
 
-  // Draw robot position
-  ctx.beginPath();
-  ctx.arc(CENTER, CENTER, 4, 0, Math.PI * 2);
-  ctx.fillStyle = "#f0883e";
-  ctx.fill();
-
-  // Plot each point
-  const pxPerMm = CENTER / (maxRangeM * 1000);
-  let   maxD = 0, minD = Infinity;
-
-  for (const [angleDeg, distMm] of points) {
-    if (distMm === 0) continue;
-    maxD = Math.max(maxD, distMm);
-    minD = Math.min(minD, distMm);
-
-    // LiDAR 0° is typically "forward" (up on screen).
-    // Adjust sign so CCW on canvas = CCW in real world.
-    const rad = (angleDeg - 90) * Math.PI / 180;
-    const r   = distMm * pxPerMm;
-    const x   = CENTER + r * Math.cos(rad);
-    const y   = CENTER + r * Math.sin(rad);
-
-    if (x < 0 || x > CANVAS_SIZE || y < 0 || y > CANVAS_SIZE) continue;
-
-    ctx.beginPath();
-    ctx.arc(x, y, 2, 0, Math.PI * 2);
-    ctx.fillStyle = colorMode === "distance" ? distColor(distMm) : "#58a6ff";
-    ctx.fill();
+  const px = C / (maxR * 1000);
+  let mx = 0, mn = Infinity;
+  for (const [a, d] of pts) {
+    if (!d) continue;
+    mx = Math.max(mx, d); mn = Math.min(mn, d);
+    const rad = (a - 90) * Math.PI / 180, rr = d * px;
+    const x = C + rr * Math.cos(rad), y = C + rr * Math.sin(rad);
+    if (x < 0 || x > CW || y < 0 || y > CW) continue;
+    ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = cMode === "distance" ? dColor(d) : "#58a6ff"; ctx.fill();
   }
-
-  // Update HUD
-  document.getElementById("hud-pts").textContent  = points.length;
-  document.getElementById("hud-max").textContent  = maxD > 0 ? (maxD / 1000).toFixed(2) : "—";
-  document.getElementById("hud-min").textContent  = minD < Infinity ? (minD / 1000).toFixed(2) : "—";
+  document.getElementById("hud-pts").textContent = pts.length;
+  document.getElementById("hud-max").textContent = mx > 0 ? (mx / 1000).toFixed(2) : "—";
+  document.getElementById("hud-min").textContent = mn < Infinity ? (mn / 1000).toFixed(2) : "—";
+  document.getElementById("s-pts").textContent  = pts.length;
+  document.getElementById("s-max").textContent  = mx > 0 ? (mx / 1000).toFixed(2) : "—";
+  document.getElementById("s-min").textContent  = mn < Infinity ? (mn / 1000).toFixed(2) : "—";
 }
 
-// ── Initial draw ──────────────────────────────────────────────────────────────
-ctx.fillStyle = "#0d1117";
-ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-drawGrid();
+ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CW); drawGrid();
 
-// ── WebSocket connection ──────────────────────────────────────────────────────
-const dot = document.getElementById("status-dot");
+// ── Socket ────────────────────────────────────────────────────────────────────
 const socket = io({ transports: ["websocket"] });
+const lidarDot  = document.getElementById("lidar-dot");
+const lidarText = document.getElementById("lidar-text");
+let lidarRunning = false;
 
-socket.on("connect", () => {
-  dot.className = "connected";
+socket.on("connect", () => socket.emit("get_status"));
+socket.on("disconnect", () => { lidarDot.className = "dot"; lidarText.textContent = "Disconnected"; });
+
+socket.on("lidar_status", (s) => {
+  lidarRunning = !!s.running;
+  if (s.connected) {
+    lidarDot.className = "dot ok";
+    lidarText.textContent = "Running";
+  } else if (s.running) {
+    lidarDot.className = "dot err";
+    lidarText.textContent = s.error ? s.error.split(":")[0] : "Connecting…";
+  } else {
+    lidarDot.className = "dot";
+    lidarText.textContent = "Stopped";
+  }
+  updateLidarBtn();
 });
 
-socket.on("disconnect", () => {
-  dot.className = "";
+socket.on("app_status", (s) => {
+  lidarRunning = !!s.lidar_running;
+  if (s.lidar_connected) { lidarDot.className = "dot ok"; lidarText.textContent = "Running"; }
+  else if (s.lidar_running) { lidarDot.className = "dot err"; lidarText.textContent = "Connecting…"; }
+  else { lidarDot.className = "dot"; lidarText.textContent = "Stopped"; }
+  updateLidarBtn();
 });
 
 socket.on("scan", ({ points, stats }) => {
-  dot.className = "scanning";
-  renderScan(points);
+  lidarDot.className = "dot active";
+  render(points);
   document.getElementById("hud-scan").textContent = stats.scan_num;
-  // Brief flash back to "connected" colour after paint
-  setTimeout(() => { dot.className = "connected"; }, 80);
+  document.getElementById("s-scan").textContent   = stats.scan_num;
+  document.getElementById("frame-info").textContent = "Scan " + stats.scan_num + " | " + stats.count + " points";
+  setTimeout(() => { if (lidarDot.className === "dot active") lidarDot.className = "dot ok"; }, 80);
 });
 
-// ── Controls ──────────────────────────────────────────────────────────────────
+// ── Port selector ─────────────────────────────────────────────────────────────
+const portSel = document.getElementById("port-select");
+
+socket.on("ports_list", ({ ports, current }) => {
+  portSel.innerHTML = "";
+  if (ports.length === 0) {
+    portSel.innerHTML = '<option value="">No serial ports found</option>';
+    return;
+  }
+  for (const p of ports) {
+    const opt = document.createElement("option");
+    opt.value = p.device;
+    opt.textContent = p.description + (p.description !== p.device ? " (" + p.device + ")" : "");
+    if (p.device === current) opt.selected = true;
+    portSel.appendChild(opt);
+  }
+});
+
+document.getElementById("refresh-btn").addEventListener("click", () => {
+  portSel.innerHTML = '<option value="">Scanning…</option>';
+  socket.emit("list_ports");
+});
+
+function updateLidarBtn() {
+  const btn = document.getElementById("lidar-btn");
+  if (lidarRunning) {
+    btn.textContent = "Stop";
+    btn.className = "btn btn-stop";
+  } else {
+    btn.textContent = "Start";
+    btn.className = "btn btn-start";
+  }
+}
+
+document.getElementById("lidar-btn").addEventListener("click", () => {
+  if (lidarRunning) {
+    socket.emit("lidar_stop");
+  } else {
+    const port = portSel.value;
+    if (!port) return;
+    socket.emit("lidar_start", { port });
+  }
+});
+
+// ── Display controls ──────────────────────────────────────────────────────────
 document.getElementById("range-slider").addEventListener("input", e => {
-  maxRangeM = parseFloat(e.target.value);
-  document.getElementById("range-val").textContent = maxRangeM + " m";
+  maxR = parseFloat(e.target.value);
+  document.getElementById("range-val").textContent = maxR + " m";
+});
+document.getElementById("trail-slider").addEventListener("input", e => { trail = parseFloat(e.target.value); });
+document.getElementById("color-mode").addEventListener("change", e => { cMode = e.target.value; });
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
 });
 
-document.getElementById("trail-slider").addEventListener("input", e => {
-  trailAlpha = parseFloat(e.target.value);
+// ── Persist fields ────────────────────────────────────────────────────────────
+const _ak = document.getElementById("api-key");
+const _lb = document.getElementById("training-label");
+const _mp = document.getElementById("model-path");
+[["ei_api_key", _ak], ["ei_label", _lb], ["ei_model_path", _mp]].forEach(([k, el]) => {
+  const v = localStorage.getItem(k); if (v) el.value = v;
+  el.addEventListener("change", () => localStorage.setItem(k, el.value));
 });
 
-document.getElementById("color-mode").addEventListener("change", e => {
-  colorMode = e.target.value;
+// ── Training ──────────────────────────────────────────────────────────────────
+let isRec = false;
+document.getElementById("record-btn").addEventListener("click", () => {
+  if (isRec) { socket.emit("training_stop"); recOff(); return; }
+  const ak = _ak.value.trim(), lb = _lb.value.trim(), dur = parseInt(document.getElementById("training-duration").value);
+  if (!ak) { tMsg("error", "Enter your Edge Impulse API key"); return; }
+  if (!lb) { tMsg("error", "Enter a label"); return; }
+  socket.emit("training_start", { api_key: ak, label: lb, duration_s: dur });
+  recOn();
 });
+
+function recOn() {
+  isRec = true;
+  const b = document.getElementById("record-btn"); b.textContent = "■ Stop"; b.classList.add("recording");
+  const p = document.getElementById("train-progress"); p.classList.add("vis");
+  p.querySelector(".progress-fill").style.width = "0%"; p.querySelector(".progress-text").textContent = "0%";
+  _ak.disabled = _lb.disabled = document.getElementById("training-duration").disabled = true;
+}
+function recOff() {
+  isRec = false;
+  const b = document.getElementById("record-btn"); b.innerHTML = "&#9679; Record"; b.classList.remove("recording");
+  _ak.disabled = _lb.disabled = document.getElementById("training-duration").disabled = false;
+}
+function tMsg(s, m) { const e = document.getElementById("training-status"); e.textContent = m; e.className = "status-msg " + s; }
+
+socket.on("training_status", ({ state, message }) => {
+  tMsg(state, message);
+  if (state === "done" || state === "error") {
+    recOff();
+    if (state === "done") {
+      const p = document.getElementById("train-progress");
+      p.querySelector(".progress-fill").style.width = "100%";
+      p.querySelector(".progress-text").textContent = "100%";
+      setTimeout(() => p.classList.remove("vis"), 3000);
+    }
+  }
+});
+socket.on("training_progress", ({ progress, samples }) => {
+  const p = document.getElementById("train-progress");
+  p.querySelector(".progress-fill").style.width = progress + "%";
+  p.querySelector(".progress-text").textContent = Math.round(progress) + "% (" + samples + ")";
+});
+
+// ── Inference ─────────────────────────────────────────────────────────────────
+let isInf = false;
+document.getElementById("infer-btn").addEventListener("click", () => {
+  if (isInf) { socket.emit("inference_stop"); return; }
+  const mp = _mp.value.trim();
+  if (!mp) { iMsg("error", "Enter path to .eim model"); return; }
+  socket.emit("inference_start", { model_path: mp });
+});
+
+function iMsg(s, m) { const e = document.getElementById("inference-status"); e.textContent = m; e.className = "status-msg " + s; }
+
+socket.on("inference_status", ({ state, message, model_info }) => {
+  iMsg(state, message);
+  if (state === "running") {
+    isInf = true;
+    const b = document.getElementById("infer-btn"); b.textContent = "■ Stop Inference"; b.classList.add("running");
+    _mp.disabled = true;
+    document.getElementById("inference-results").classList.add("vis");
+    document.getElementById("inference-overlay").style.display = "block";
+    if (model_info && model_info.labels) {
+      const c = document.getElementById("results-bars"); c.innerHTML = "";
+      for (const l of model_info.labels) {
+        const r = document.createElement("div"); r.className = "result-row";
+        r.innerHTML = '<span class="result-lbl">' + l + '</span>' +
+          '<div class="result-track"><div class="result-fill" data-l="' + l + '"></div></div>' +
+          '<span class="result-pct" data-lp="' + l + '">0%</span>';
+        c.appendChild(r);
+      }
+    }
+  } else if (state === "stopped" || state === "error") {
+    isInf = false;
+    const b = document.getElementById("infer-btn"); b.innerHTML = "&#9655; Start Inference"; b.classList.remove("running");
+    _mp.disabled = false;
+    if (state === "stopped") {
+      document.getElementById("inference-results").classList.remove("vis");
+      document.getElementById("inference-overlay").style.display = "none";
+      document.getElementById("det-card").style.display = "none";
+    }
+  }
+});
+
+socket.on("inference_result", (data) => {
+  if (data.error) return;
+  const cls = (data.result || data).classification;
+  if (!cls) return;
+  let topL = "", topC = 0;
+  for (const [l, c] of Object.entries(cls)) {
+    if (c > topC) { topC = c; topL = l; }
+    const bar = document.querySelector('[data-l="' + l + '"]');
+    const pct = document.querySelector('[data-lp="' + l + '"]');
+    if (bar) bar.style.width = (c * 100).toFixed(1) + "%";
+    if (pct) pct.textContent = (c * 100).toFixed(0) + "%";
+  }
+  document.querySelectorAll(".result-fill").forEach(b => b.classList.remove("top"));
+  const tb = document.querySelector('[data-l="' + topL + '"]');
+  if (tb) tb.classList.add("top");
+  document.getElementById("inf-top-label").textContent = topL;
+  document.getElementById("inf-top-conf").textContent  = (topC * 100).toFixed(0) + "%";
+
+  const dc = document.getElementById("det-card"); dc.style.display = "block";
+  document.getElementById("det-label").textContent = topL;
+  document.getElementById("det-conf").textContent  = (topC * 100).toFixed(1) + "% confidence";
+
+  const t = (data.result || data).timing;
+  if (t) document.getElementById("inf-timing").textContent = "DSP: " + (t.dsp || 0) + " ms | Classification: " + (t.classification || 0) + " ms";
+});
+
 </script>
 </body>
 </html>

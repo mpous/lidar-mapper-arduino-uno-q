@@ -1,4 +1,4 @@
-# LiDAR mapper for Arduino UNO Q
+# LiDAR mapper with Edge Impulse and Arduino UNO Q
 
 In this project we will connect an LDRobot D500 LiDAR Developer Kit to an Arduino UNO Q, capture distance profiles from different rooms, upload them to Edge Impulse Studio as time-series data, train a classification model, and deploy it back on the Arduino UNO Q for real-time inference, all happening in the edge. 
 

@@ -69,25 +69,34 @@ Navigate to `http://<board-ip>:5001` in your browser.
 
 ## Edge Impulse Studio integration
 
-### Capture training data
+### Capture training data and train the machine learning model with Edge Impulse
 
 1. Open the **Training** tab in the web UI
 2. Enter your Edge Impulse project **API key** (found in Edge Impulse Studio `Dashboard` and then click the `Keys` tab)
 3. Set a **label** (e.g., `room`, `corridor`, `wall`)
 4. Choose a recording duration and click **Record**
 5. Scans are uploaded to your Edge Impulse project as time-series data with 360 features (one distance per degree)
+6. Go to Edge Impulse Studio and Split all the data collected into 1s segments.
+7. Create the Impulse as a `Time-Series data` and `Classification`.
+
+<img width="800" alt="Create the Impulse" src="https://github.com/user-attachments/assets/a57eecf7-ecbb-4946-a11b-7328c4b63cc8" />
+
+8. Check the Classifier clustering results and train the machine learning model.
 
 <img width="800" alt="Training the ML model for the space detection with the LiDAR on Arduino UNO Q" src="https://github.com/user-attachments/assets/445a1b27-5c0f-402b-94c1-50f225748287" />
 
-
 ### Running model inference
 
-1. Train a model in Edge Impulse Studio using the captured LiDAR data
-2. Deploy as **Arduino UNO Q**
-3. Install the runtime: `pip install edge_impulse_linux`
-4. Open the **Inference** tab, enter the model path, and click **Start Inference**
-5. Classification results appear as live confidence bars overlaid on the map
+1. Train a model in Edge Impulse Studio using the captured LiDAR data.
+2. Deploy as **Arduino UNO Q** (remember to select as target hardware the `Arduino UNO Q`).
+3. Copy (`scp`) the `.eim` resulting model to the Arduino UNO Q. I used `~/ArduinoApps/lidar-mapper/model` folder. Then run `chmod +x your-model-name.eim` 
+4. Run the python `main.py` application.
+5. Open the **Inference** tab, enter the model path, and click **Start Inference**
+6. Classification results appear as live confidence bars overlaid on the map
 
+<img width="800" alt="Run classification inference with LiDAR data with Arduino UNO Q and Edge Impulse" src="https://github.com/user-attachments/assets/52039603-066f-49ee-877a-31ec50dc9506" />
+
+Try with more data and more spaces in your environment and share feedback!
 
 
 ## Disclaimer

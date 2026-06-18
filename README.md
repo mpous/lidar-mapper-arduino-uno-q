@@ -14,9 +14,9 @@ LiDAR stands for Light Detection and Ranging. The LiDAR measures distance by fir
 
 And the engineering that makes it practical has branched into several quite different technologies, each with distinct trade-offs.
 
-- Direct Time-of-Flight (dToF) sends a short laser pulse and measures the exact time until the reflection arrives. The D500 that we are using uses this. It works at long range (up to 12 m indoors, hundreds of metres), and accuracy doesn't degrade with distance.
+- Direct Time-of-Flight (dToF) sends a short laser pulse and measures the exact time until the reflection arrives. The LiDAR we are using in this project uses dToF. It can work up to 12 meters indoors and hundreds of metres outdoors and accuracy doesn't degrade with distance.
 
-- Indirect Time-of-Flight (iToF) continuously modulates the laser and measures the phase shift of the returning wave. Most depth cameras use this, such as Intel RealSense.
+- Indirect Time-of-Flight (iToF) continuously modulates the laser and measures the phase shift of the returning wave. Most depth cameras use this, such as the RealSense cameras used in robotics.
 
 ## Getting started
 

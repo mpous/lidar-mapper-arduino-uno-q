@@ -23,7 +23,7 @@ And the engineering that makes it practical has branched into several quite diff
 ### Hardware
 
 - [Arduino UNO Q board](https://store.arduino.cc/pages/uno-q)
-- [LDROBOT D500 LiDAR sensor connected via USB](https://www.waveshare.com/wiki/D500_LiDAR_Kit)
+- [DFROBOT D500 LiDAR sensor connected via USB](https://www.waveshare.com/wiki/D500_LiDAR_Kit)
 
 ### Software
 
@@ -45,6 +45,7 @@ cd /home/arduino/ArduinoApps/lidar-mapper
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --no-cache-dir -r python/requirements.txt
+chmod +X models/model.eim
 ```
 
 ### Start the application
